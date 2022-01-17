@@ -6,6 +6,7 @@ import moment from 'moment';
 
 await dotenv.config();
 const paymentDayInMonth = process.env.PAYMENT_DAY_IN_MONTH;
+const pricePerMeal = parseFloat(process.env.PRICE_PER_MEAL);
 
 const app = express();
 const port = process.env.WEBSERVER_PORT;
@@ -19,17 +20,20 @@ app.get('/', async (req, res) => {
         password: process.env.K6_PASSWORD,
     });
 
-    const balanceInNumberOfMeals = Math.floor(balance.balanceInCurrency / process.env.PRICE_PER_MEAL);
+    const balanceInNumberOfMeals = Math.floor(balance.currentBalance / pricePerMeal);
     const numberOfMealsNeeded = weekdaysUntilNextPayment - balanceInNumberOfMeals;
     const topupNeeded = numberOfMealsNeeded * process.env.PRICE_PER_MEAL;
 
-    balance.weekdaysUntilNextPayment = weekdaysUntilNextPayment;
-    balance.mealPrice = process.env.PRICE_PER_MEAL;
-    balance.balanceInNumberOfMeals = balanceInNumberOfMeals;
-    balance.mealsNeeded = numberOfMealsNeeded;
-    balance.topupNeeded = topupNeeded;
-
-    res.json(balance);
+    res.json({
+        currentBalance: balance.currentBalance,
+        currentBalanceInNumberOfMeals: balanceInNumberOfMeals,
+        balanceCurrencyUnit: balance.balanceCurrencyUnit,
+        weekdaysUntilNextPayment: weekdaysUntilNextPayment,
+        pricePerMeal: pricePerMeal,
+        mealsNeeded: numberOfMealsNeeded,
+        topupNeeded: topupNeeded,
+        lastToppedUpUTC: balance.lastToppedUpUTC,
+    });
 })
 
 app.listen(port, () => {
@@ -126,8 +130,8 @@ async function getK6Balance(credentials)
 
     await browser.close();
     return {
-        balanceInCurrency: formattedBalance,
-        currencyUnit: currencyUnit,
+        currentBalance: formattedBalance,
+        balanceCurrencyUnit: currencyUnit,
         lastToppedUpUTC: dateObject.toISOString(),
     }
 }
