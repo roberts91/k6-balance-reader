@@ -117,8 +117,7 @@ async function getK6Balance(credentials)
 
     const balanceString = await page.innerText('.balance-and-date .balance');
     const dateString = await page.innerText('.balance-and-date .date');
-
-
+    
     const balanceMatcher = new RegExp('^Saldo: ([0-9].+) ([A-Z]{1,5})$', 'i');
     const balanceMatches = balanceString.match(balanceMatcher);
     const formattedBalance = parseFloat(balanceMatches[1]);
