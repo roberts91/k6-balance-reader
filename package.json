@@ -1,7 +1,7 @@
 {
   "name": "k6-balance-reader",
   "version": "1.0.0",
-  "description": "A Node-application check how much you should add to your K6 account.",
+  "description": "A Node-application check your balane and how much you should top up your K6 account.",
   "main": "index.js",
   "repository": "https://github.com/roberts91/k6-balance-reader",
   "author": "Robert S.",
