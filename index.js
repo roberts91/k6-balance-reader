@@ -22,7 +22,7 @@ app.get('/', async (req, res) => {
 
     const balanceInNumberOfMeals = Math.floor(balance.currentBalance / pricePerMeal);
     const numberOfMealsNeeded = weekdaysUntilNextPayment - balanceInNumberOfMeals;
-    const topupNeeded = numberOfMealsNeeded * process.env.PRICE_PER_MEAL;
+    const topupNeeded = numberOfMealsNeeded * pricePerMeal;
 
     res.json({
         currentBalance: balance.currentBalance,
@@ -117,7 +117,7 @@ async function getK6Balance(credentials)
 
     const balanceString = await page.innerText('.balance-and-date .balance');
     const dateString = await page.innerText('.balance-and-date .date');
-    
+
     const balanceMatcher = new RegExp('^Saldo: ([0-9].+) ([A-Z]{1,5})$', 'i');
     const balanceMatches = balanceString.match(balanceMatcher);
     const formattedBalance = parseFloat(balanceMatches[1]);
