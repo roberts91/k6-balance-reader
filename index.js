@@ -12,19 +12,40 @@ const app = express();
 const port = process.env.WEBSERVER_PORT;
 
 app.get('/', async (req, res) => {
-    const nextPayDate = getNextPayDate();
-    const weekdaysUntilNextPayment = calculateWeekdaysBetweenDates(moment(), nextPayDate);
+    const result = await generateBalanceData();
+    if (result) {
+        res.json(result);
+    } else {
+        res.json({
+            error: 'Could not obtain account balance'
+        });
+    }
+})
 
+app.listen(port, () => {
+    console.log(`Example app listening at http://localhost:${port}`)
+});
+
+/**
+ * Generate balance data.
+ *
+ * @returns {Promise<{topupNeeded: number, weekdaysUntilNextPayment: number, pricePerMeal: number, balanceCurrencyUnit: *, currentBalance: *, mealsNeeded: number, lastToppedUpUTC: *, currentBalanceInNumberOfMeals: number}|boolean>}
+ */
+async function generateBalanceData()
+{
     const balance = await getK6Balance({
         username: process.env.K6_USERNAME,
         password: process.env.K6_PASSWORD,
     });
-
+    if (balance === false) {
+        return false;
+    }
+    const weekdaysUntilNextPayment = calculateWeekdaysBetweenDates(moment(), getNextPayDate());
     const balanceInNumberOfMeals = Math.floor(balance.currentBalance / pricePerMeal);
     const numberOfMealsNeeded = weekdaysUntilNextPayment - balanceInNumberOfMeals;
     const topupNeeded = numberOfMealsNeeded * pricePerMeal;
 
-    res.json({
+    return {
         currentBalance: balance.currentBalance,
         currentBalanceInNumberOfMeals: balanceInNumberOfMeals,
         balanceCurrencyUnit: balance.balanceCurrencyUnit,
@@ -33,12 +54,8 @@ app.get('/', async (req, res) => {
         mealsNeeded: numberOfMealsNeeded,
         topupNeeded: topupNeeded,
         lastToppedUpUTC: balance.lastToppedUpUTC,
-    });
-})
-
-app.listen(port, () => {
-    console.log(`Example app listening at http://localhost:${port}`)
-})
+    };
+}
 
 /**
  * Calculate the number of weekdays between two dates.
@@ -50,13 +67,12 @@ app.listen(port, () => {
 function calculateWeekdaysBetweenDates(from, to)
 {
     let dayCount = 0;
-    const nextPayDate = getNextPayDate();
     let daysUntilPayment = to.diff(from, 'days');
     while(daysUntilPayment >= 0) {
-        if (![0, 6].includes(nextPayDate.day())) {
+        if (![0, 6].includes(to.day())) {
             dayCount++;
         }
-        nextPayDate.subtract(1, 'day');
+        to.subtract(1, 'day');
         daysUntilPayment--;
     }
     return dayCount;
@@ -87,14 +103,13 @@ function getNextPayDate()
  * Get the account balance.
  *
  * @param credentials
- * @returns {Promise<{dateTimeUTC: string, balance: number, currencyUnit: string}>}
+ * @returns {Promise<{balanceCurrencyUnit: string, currentBalance: number, lastToppedUpUTC: string}|boolean>}
  */
 async function getK6Balance(credentials)
 {
     const browser = await playwright.chromium.launch();
     const context = await browser.newContext({
-        acceptDownloads: true,
-        headless: false,
+        headless: true,
     });
     const page = await context.newPage();
     await page.goto(process.env.ACCOUNT_URL);
@@ -119,11 +134,19 @@ async function getK6Balance(credentials)
     const dateString = await page.innerText('.balance-and-date .date');
 
     const balanceMatcher = new RegExp('^Saldo: ([0-9].+) ([A-Z]{1,5})$', 'i');
+    if (!balanceMatcher.test(balanceString)) {
+        //console.log('Could not extract balance from markup.');
+        return false;
+    }
     const balanceMatches = balanceString.match(balanceMatcher);
     const formattedBalance = parseFloat(balanceMatches[1]);
-    const currencyUnit = balanceMatches[2];
+    const currencyUnit = balanceMatches[80];
 
     const dateMatcher = new RegExp('^([0-9]{1,2})\\.([0-9]{1,2})\\.([0-9]{4}) ([0-9]{1,2}):([0-9]{1,2})$', 'i');
+    if (!dateMatcher.test(dateString)) {
+        //console.log('Could not extract date from markup.');
+        return false;
+    }
     const dateMatches = dateString.match(dateMatcher);
     const dateObject = new Date(parseInt(dateMatches[3]), parseInt(dateMatches[2]) - 1, parseInt(dateMatches[1]), parseInt(dateMatches[4]), parseInt(dateMatches[5]));
 
